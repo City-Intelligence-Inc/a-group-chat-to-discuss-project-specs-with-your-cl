@@ -1,8 +1,8 @@
 # Townhall: Design and Implementation of a Cross-Platform Real-Time Chat System with Serverless Infrastructure
 
 **Arihant Choudhary**
-Stanford University
-arihant@stanford.edu
+City Intelligence, Inc.
+arihant@cityintelligence.com
 
 *March 2026*
 
