@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useUser } from "@clerk/nextjs";
-import { Hash, Users, SendHorizontal, Smile, Paperclip, Trash2, X, FileText, Image as ImageIcon, MessageSquare, Share, Bookmark, MoreHorizontal, Copy, Pin } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Hash, Users, SendHorizontal, Paperclip, Trash2, Pencil, Reply, X, SmilePlus, Check } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -16,6 +14,11 @@ interface Message {
   content: string;
   created_at: string;
   sort_key?: string;
+  reactions?: Record<string, string[]>;
+  edited_at?: string | null;
+  reply_to?: string | null;
+  reply_preview?: string | null;
+  reply_username?: string | null;
 }
 
 interface ChatAreaProps {
@@ -36,6 +39,8 @@ interface ChatAreaProps {
   onCancelReply?: () => void;
 }
 
+const QUICK_EMOJIS = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F389}", "\u{1F440}", "\u{1F525}", "\u{1F64F}", "\u{2705}"];
+
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
@@ -50,7 +55,6 @@ function formatDateLabel(iso: string) {
   return d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
 }
 
-// Markdown components styled for chat
 const mdComponents = {
   p: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold">{children}</strong>,
@@ -77,11 +81,8 @@ const mdComponents = {
 };
 
 function MessageContent({ content }: { content: string }) {
-  // Only use markdown if content has markdown-like syntax
   const hasMarkdown = /[*_`#\[\]>~-]/.test(content);
-  if (!hasMarkdown) {
-    return <span className="whitespace-pre-wrap">{content}</span>;
-  }
+  if (!hasMarkdown) return <span className="whitespace-pre-wrap">{content}</span>;
   return (
     <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents as Record<string, React.ComponentType>}>
       {content}
@@ -89,206 +90,64 @@ function MessageContent({ content }: { content: string }) {
   );
 }
 
-// Slack-style hover action bar
-function MessageActionBar({
-  isOwn,
-  onDelete,
-  onReply,
-  content,
-}: {
-  isOwn: boolean;
-  onDelete?: () => void;
-  onReply?: () => void;
-  content: string;
-}) {
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+function ReactionBar({ reactions, currentUserId, onToggle }: { reactions: Record<string, string[]>; currentUserId?: string; onToggle: (emoji: string) => void }) {
+  const entries = Object.entries(reactions).filter(([, users]) => users.length > 0);
+  if (entries.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1.5">
+      {entries.map(([emoji, users]) => {
+        const active = currentUserId && users.includes(currentUserId);
+        return (
+          <button key={emoji} onClick={() => onToggle(emoji)} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors ${active ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-neutral-50 border-neutral-200 text-neutral-600 hover:bg-neutral-100"}`}>
+            <span>{emoji}</span>
+            <span className="tabular-nums font-medium">{users.length}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-  // Close menu on outside click
+function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!moreOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMoreOpen(false);
-      }
-    };
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [moreOpen]);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => { setCopied(false); setMoreOpen(false); }, 1200);
-  };
-
-  const actionBtn =
-    "h-7 w-7 flex items-center justify-center rounded transition-colors text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100";
-
+  }, [onClose]);
   return (
-    <div className="absolute -top-4 right-4 hidden group-hover:flex items-center bg-white rounded-lg border border-neutral-200 shadow-sm z-10">
-      {/* Quick emoji reactions */}
-      <button className={actionBtn} title="React">
-        <Smile className="h-4 w-4" />
-      </button>
-      {/* Reply / thread */}
-      <button className={actionBtn} title="Reply in thread" onClick={onReply}>
-        <MessageSquare className="h-4 w-4" />
-      </button>
-      {/* Share */}
-      <button className={actionBtn} title="Share message">
-        <Share className="h-4 w-4" />
-      </button>
-      {/* Bookmark */}
-      <button className={actionBtn} title="Save for later">
-        <Bookmark className="h-4 w-4" />
-      </button>
-      {/* More — opens dropdown with copy, pin, delete */}
-      <div className="relative" ref={menuRef}>
-        <button
-          className={`${actionBtn} ${moreOpen ? "bg-neutral-100 text-neutral-800" : ""}`}
-          title="More actions"
-          onClick={() => setMoreOpen((s) => !s)}
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
-        {moreOpen && (
-          <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-neutral-200 bg-white shadow-lg py-1 z-20">
-            <button
-              onClick={handleCopy}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-neutral-700 hover:bg-neutral-50 transition-colors"
-            >
-              <Copy className="h-3.5 w-3.5 text-neutral-400" />
-              {copied ? "Copied!" : "Copy text"}
-            </button>
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-neutral-700 hover:bg-neutral-50 transition-colors"
-            >
-              <Pin className="h-3.5 w-3.5 text-neutral-400" />
-              Pin to channel
-            </button>
-            {isOwn && onDelete && (
-              <>
-                <div className="my-1 border-t border-neutral-100" />
-                <button
-                  onClick={() => { onDelete(); setMoreOpen(false); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete message
-                </button>
-              </>
-            )}
-          </div>
-        )}
+    <div ref={ref} className="absolute bottom-full mb-1 right-0 bg-white rounded-lg border border-neutral-200 shadow-lg p-2 z-50">
+      <div className="grid grid-cols-4 gap-1">
+        {QUICK_EMOJIS.map((emoji) => (
+          <button key={emoji} onClick={() => { onSelect(emoji); onClose(); }} className="h-8 w-8 rounded-md flex items-center justify-center text-lg hover:bg-neutral-100 transition-colors">{emoji}</button>
+        ))}
       </div>
     </div>
   );
 }
 
-export function ChatArea({
-  roomName,
-  roomDescription,
-  messages,
-  onSendMessage,
-  onDeleteMessage,
-  onEditMessage,
-  onToggleReaction,
-  onToggleMembers,
-  showMembers,
-  typingUsers = [],
-  onTyping,
-  currentUserId,
-  replyingTo,
-  onReply,
-  onCancelReply,
-}: ChatAreaProps) {
-  const { user } = useUser();
+export function ChatArea({ roomName, roomDescription, messages, onSendMessage, onDeleteMessage, onEditMessage, onToggleReaction, onToggleMembers, showMembers, typingUsers = [], onTyping, currentUserId, replyingTo, onReply, onCancelReply }: ChatAreaProps) {
   const [input, setInput] = useState("");
-  const [isDragging, setIsDragging] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<{ file: File; preview?: string }[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dragCounterRef = useRef(0);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => { if (replyingTo) textareaRef.current?.focus(); }, [replyingTo]);
 
-  // Upload file to S3 via backend
-  const uploadFile = useCallback(async (file: File): Promise<{ url: string; key: string; name: string } | null> => {
-    try {
-      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`${API}/api/uploads/`, { method: "POST", body: formData });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return { url: data.url, key: data.key, name: file.name };
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const processFiles = useCallback(async (files: File[]) => {
-    // Add previews for images
-    const withPreviews = files.map((file) => {
-      if (file.type.startsWith("image/")) {
-        return { file, preview: URL.createObjectURL(file) };
-      }
-      return { file };
-    });
-    setPendingFiles((prev) => [...prev, ...withPreviews]);
-  }, []);
-
-  const removePendingFile = useCallback((index: number) => {
-    setPendingFiles((prev) => {
-      const removed = prev[index];
-      if (removed?.preview) URL.revokeObjectURL(removed.preview);
-      return prev.filter((_, i) => i !== index);
-    });
-  }, []);
-
-  const handleSend = useCallback(async () => {
-    const hasText = input.trim();
-    const hasFiles = pendingFiles.length > 0;
-    if (!hasText && !hasFiles) return;
-
-    // Upload pending files first
-    if (hasFiles) {
-      setUploading(true);
-      for (const { file } of pendingFiles) {
-        const result = await uploadFile(file);
-        if (result) {
-          const isImage = file.type.startsWith("image/");
-          const fileMsg = isImage
-            ? `![${result.name}](${result.url})`
-            : `[${result.name}](${result.url})`;
-          onSendMessage(fileMsg);
-        }
-      }
-      // Clean up previews
-      pendingFiles.forEach((pf) => { if (pf.preview) URL.revokeObjectURL(pf.preview); });
-      setPendingFiles([]);
-      setUploading(false);
-    }
-
-    // Send text message if any
-    if (hasText) {
-      onSendMessage(input.trim());
-      setInput("");
-      if (textareaRef.current) textareaRef.current.style.height = "auto";
-    }
-  }, [input, pendingFiles, uploadFile, onSendMessage]);
+  const handleSend = () => {
+    if (!input.trim()) return;
+    onSendMessage(input.trim());
+    setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === "Escape" && replyingTo && onCancelReply) onCancelReply();
   };
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -296,201 +155,144 @@ export function ChatArea({
     const el = e.target;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 150) + "px";
-    if (e.target.value.trim() && onTyping) onTyping();
+    if (e.target.value.trim()) onTyping?.();
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length > 0) processFiles(files);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const startEdit = (msg: Message) => { setEditingId(msg.id); setEditContent(msg.content); };
+  const confirmEdit = (msg: Message) => {
+    if (!editContent.trim() || !msg.sort_key || !onEditMessage) return;
+    onEditMessage(msg.id, msg.sort_key, editContent.trim());
+    setEditingId(null); setEditContent("");
   };
+  const cancelEdit = () => { setEditingId(null); setEditContent(""); };
 
-  // Drag and drop handlers
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current++;
-    if (e.dataTransfer.types.includes("Files")) {
-      setIsDragging(true);
-    }
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current--;
-    if (dragCounterRef.current === 0) {
-      setIsDragging(false);
-    }
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current = 0;
-    setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) processFiles(files);
-  }, [processFiles]);
-
-  // Toolbar helpers
   const wrapSelection = (before: string, after: string) => {
     const ta = textareaRef.current;
     if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
+    const start = ta.selectionStart, end = ta.selectionEnd;
     const selected = input.substring(start, end);
-    const newText = input.substring(0, start) + before + selected + after + input.substring(end);
-    setInput(newText);
-    setTimeout(() => {
-      ta.focus();
-      ta.selectionStart = start + before.length;
-      ta.selectionEnd = end + before.length;
-    }, 0);
+    setInput(input.substring(0, start) + before + selected + after + input.substring(end));
+    setTimeout(() => { ta.focus(); ta.selectionStart = start + before.length; ta.selectionEnd = end + before.length; }, 0);
   };
 
-  // Group by date
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    for (const file of files) {
+      try {
+        const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch(`${API}/api/uploads/`, { method: "POST", body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          const isImage = file.type.startsWith("image/");
+          onSendMessage(isImage ? `![${file.name}](${data.url})` : `[${file.name}](${data.url})`);
+        }
+      } catch { /* upload failed */ }
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [onSendMessage]);
+
   const groups: { label: string; msgs: Message[] }[] = [];
   let curDate = "";
   for (const msg of messages) {
     const d = new Date(msg.created_at).toDateString();
-    if (d !== curDate) {
-      curDate = d;
-      groups.push({ label: formatDateLabel(msg.created_at), msgs: [msg] });
-    } else {
-      groups[groups.length - 1].msgs.push(msg);
-    }
+    if (d !== curDate) { curDate = d; groups.push({ label: formatDateLabel(msg.created_at), msgs: [msg] }); }
+    else { groups[groups.length - 1].msgs.push(msg); }
   }
 
-  return (
-    <div
-      className="flex flex-col flex-1 min-w-0 bg-white relative"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      {/* Drag overlay */}
-      {isDragging && (
-        <div className="absolute inset-0 z-50 bg-white/90 backdrop-blur-sm flex items-center justify-center border-2 border-dashed border-blue-400 rounded-lg m-2 pointer-events-none">
-          <div className="text-center">
-            <Paperclip className="h-10 w-10 text-blue-400 mx-auto mb-3" />
-            <p className="text-lg font-semibold text-neutral-700">Drop files here</p>
-            <p className="text-sm text-neutral-400 mt-1">Images, documents, or any file</p>
-          </div>
+  const renderActions = (msg: Message, isOwn: boolean) => (
+    <div className="absolute -top-3 right-5 hidden group-hover:flex items-center gap-0.5 rounded-md bg-white border border-neutral-200 shadow-sm px-0.5 py-0.5 z-10">
+      {onToggleReaction && msg.sort_key && (
+        <div className="relative">
+          <button onClick={() => setEmojiPickerMsgId(emojiPickerMsgId === msg.id ? null : msg.id)} className="h-7 w-7 rounded flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors" title="Add reaction"><SmilePlus className="h-3.5 w-3.5" /></button>
+          {emojiPickerMsgId === msg.id && <EmojiPicker onSelect={(emoji) => onToggleReaction(msg.id, msg.sort_key!, emoji)} onClose={() => setEmojiPickerMsgId(null)} />}
         </div>
       )}
+      {onReply && <button onClick={() => onReply(msg)} className="h-7 w-7 rounded flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors" title="Reply"><Reply className="h-3.5 w-3.5" /></button>}
+      {isOwn && onEditMessage && msg.sort_key && <button onClick={() => startEdit(msg)} className="h-7 w-7 rounded flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors" title="Edit"><Pencil className="h-3.5 w-3.5" /></button>}
+      {isOwn && onDeleteMessage && <button onClick={() => onDeleteMessage(msg.id, msg.sort_key)} className="h-7 w-7 rounded flex items-center justify-center text-neutral-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>}
+    </div>
+  );
 
-      {/* Header */}
+  const renderReplyBadge = (msg: Message) => {
+    if (!msg.reply_preview) return null;
+    return (
+      <div className="flex items-center gap-1.5 mb-1">
+        <div className="w-0.5 h-4 rounded-full bg-neutral-300" />
+        <span className="text-[12px] text-neutral-400 truncate max-w-md"><span className="font-medium text-neutral-500">{msg.reply_username || "someone"}</span> {msg.reply_preview}</span>
+      </div>
+    );
+  };
+
+  const renderContent = (msg: Message, isOwn: boolean) => {
+    if (editingId === msg.id) {
+      return (
+        <div className="flex items-center gap-2 mt-0.5">
+          <input type="text" value={editContent} onChange={(e) => setEditContent(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmEdit(msg); if (e.key === "Escape") cancelEdit(); }} className="flex-1 text-[14px] bg-neutral-50 border border-neutral-200 rounded-md px-2 py-1 outline-none focus:border-neutral-400" autoFocus />
+          <button onClick={() => confirmEdit(msg)} className="h-6 w-6 rounded flex items-center justify-center text-emerald-600 hover:bg-emerald-50"><Check className="h-3.5 w-3.5" /></button>
+          <button onClick={cancelEdit} className="h-6 w-6 rounded flex items-center justify-center text-neutral-400 hover:bg-neutral-100"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      );
+    }
+    return (
+      <>
+        <div className="text-[15px] text-neutral-800 leading-[1.7] mt-0.5">
+          <MessageContent content={msg.content} />
+          {msg.edited_at && <span className="text-[11px] text-neutral-400 ml-1">(edited)</span>}
+        </div>
+        {msg.reactions && onToggleReaction && msg.sort_key && <ReactionBar reactions={msg.reactions} currentUserId={currentUserId} onToggle={(emoji) => onToggleReaction(msg.id, msg.sort_key!, emoji)} />}
+      </>
+    );
+  };
+
+  return (
+    <div className="flex flex-col flex-1 min-w-0 bg-white">
       <div className="flex items-center justify-between px-5 h-12 border-b border-neutral-200 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <Hash className="h-4 w-4 text-neutral-400 shrink-0" />
           <h1 className="text-[15px] font-semibold text-neutral-900 truncate">{roomName}</h1>
-          {roomDescription && (
-            <>
-              <span className="mx-1 h-3.5 w-px bg-neutral-200" />
-              <span className="text-[13px] text-neutral-400 truncate">{roomDescription}</span>
-            </>
-          )}
+          {roomDescription && (<><span className="mx-1 h-3.5 w-px bg-neutral-200" /><span className="text-[13px] text-neutral-400 truncate">{roomDescription}</span></>)}
         </div>
-        <button
-          title={showMembers ? "Hide members" : "Show members"}
-          onClick={onToggleMembers}
-          className={`inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors ${
-            showMembers ? "bg-neutral-100 text-neutral-900" : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
-          }`}
-        >
-          <Users className="h-4 w-4" />
-        </button>
+        <button title={showMembers ? "Hide members" : "Show members"} onClick={onToggleMembers} className={`inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors ${showMembers ? "bg-neutral-100 text-neutral-900" : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"}`}><Users className="h-4 w-4" /></button>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-5 py-4">
           {messages.length === 0 && (
             <div className="py-8">
-              <div className="h-10 w-10 rounded-lg bg-neutral-100 flex items-center justify-center mb-3">
-                <Hash className="h-5 w-5 text-neutral-600" />
-              </div>
-              <h2 className="text-xl font-semibold text-neutral-900 font-serif">
-                Welcome to #{roomName}
-              </h2>
-              <p className="mt-1 text-sm text-neutral-500 max-w-md">
-                This is the start of the <span className="font-medium text-neutral-700">#{roomName}</span> channel.
-                {roomDescription ? ` ${roomDescription}` : " Send a message to get the conversation going."}
-              </p>
+              <div className="h-10 w-10 rounded-lg bg-neutral-100 flex items-center justify-center mb-3"><Hash className="h-5 w-5 text-neutral-600" /></div>
+              <h2 className="text-xl font-semibold text-neutral-900 font-serif">Welcome to #{roomName}</h2>
+              <p className="mt-1 text-sm text-neutral-500 max-w-md">This is the start of the <span className="font-medium text-neutral-700">#{roomName}</span> channel.{roomDescription ? ` ${roomDescription}` : " Send a message to get the conversation going."}</p>
             </div>
           )}
-
           {groups.map((group, gi) => (
             <div key={gi}>
-              <div className="flex items-center my-5">
-                <div className="flex-1 h-px bg-neutral-200" />
-                <span className="mx-3 text-[11px] font-medium text-neutral-400 uppercase tracking-wider whitespace-nowrap">
-                  {group.label}
-                </span>
-                <div className="flex-1 h-px bg-neutral-200" />
-              </div>
-
+              <div className="flex items-center my-5"><div className="flex-1 h-px bg-neutral-200" /><span className="mx-3 text-[11px] font-medium text-neutral-400 uppercase tracking-wider whitespace-nowrap">{group.label}</span><div className="flex-1 h-px bg-neutral-200" /></div>
               {group.msgs.map((msg, mi) => {
                 const prev = mi > 0 ? group.msgs[mi - 1] : null;
-                const compact =
-                  prev &&
-                  prev.user_id === msg.user_id &&
-                  new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < 300000;
-                const isOwn = msg.user_id === (currentUserId || user?.id);
-
+                const compact = prev && prev.user_id === msg.user_id && !msg.reply_preview && new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < 300000;
+                const isOwn = msg.user_id === currentUserId;
                 if (compact) {
                   return (
                     <div key={msg.id} className="group relative -mx-5 px-5 py-[5px] hover:bg-neutral-50/80 transition-colors">
-                      <span className="absolute left-5 top-1/2 -translate-y-1/2 hidden group-hover:inline text-[11px] text-neutral-400 tabular-nums">
-                        {formatTime(msg.created_at)}
-                      </span>
-                      <div className="pl-[56px] text-[15px] text-neutral-800 leading-[1.7]">
-                        <MessageContent content={msg.content} />
-                      </div>
-                      <MessageActionBar
-                        isOwn={isOwn}
-                        content={msg.content}
-                        onDelete={onDeleteMessage ? () => onDeleteMessage(msg.id, msg.sort_key) : undefined}
-                        onReply={onReply ? () => onReply(msg) : undefined}
-                      />
+                      {renderActions(msg, isOwn)}
+                      <span className="absolute left-5 top-1/2 -translate-y-1/2 hidden group-hover:inline text-[11px] text-neutral-400 tabular-nums">{formatTime(msg.created_at)}</span>
+                      <div className="pl-[56px]">{renderContent(msg, isOwn)}</div>
                     </div>
                   );
                 }
-
                 return (
-                  <div key={msg.id} className="group relative flex items-start gap-4 -mx-5 px-5 pt-2 pb-1 mt-4 first:mt-0 hover:bg-neutral-50/80 transition-colors">
-                    <Avatar className="h-10 w-10 mt-0.5 shrink-0">
-                      <AvatarImage src={msg.avatar_url} />
-                      <AvatarFallback className="bg-neutral-200 text-neutral-600 text-sm font-medium">
-                        {msg.username?.[0]?.toUpperCase() || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-[15px] font-bold text-neutral-900 hover:underline cursor-pointer">
-                          {msg.username}
-                        </span>
-                        <span className="text-[12px] text-neutral-400 tabular-nums font-normal">
-                          {formatTime(msg.created_at)}
-                        </span>
-                      </div>
-                      <div className="text-[15px] text-neutral-800 leading-[1.7] mt-1">
-                        <MessageContent content={msg.content} />
+                  <div key={msg.id} className="group relative -mx-5 px-5 pt-2 pb-1 mt-4 first:mt-0 hover:bg-neutral-50/80 transition-colors">
+                    {renderActions(msg, isOwn)}
+                    <div className="pl-[56px]">{renderReplyBadge(msg)}</div>
+                    <div className="flex items-start gap-4">
+                      <Avatar className="h-10 w-10 mt-0.5 shrink-0"><AvatarImage src={msg.avatar_url} /><AvatarFallback className="bg-neutral-200 text-neutral-600 text-sm font-medium">{msg.username?.[0]?.toUpperCase() || "?"}</AvatarFallback></Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2"><span className="text-[15px] font-bold text-neutral-900 hover:underline cursor-pointer">{msg.username}</span><span className="text-[12px] text-neutral-400 tabular-nums font-normal">{formatTime(msg.created_at)}</span></div>
+                        {renderContent(msg, isOwn)}
                       </div>
                     </div>
-                    <MessageActionBar
-                      isOwn={isOwn}
-                      content={msg.content}
-                      onDelete={onDeleteMessage ? () => onDeleteMessage(msg.id, msg.sort_key) : undefined}
-                      onReply={onReply ? () => onReply(msg) : undefined}
-                    />
                   </div>
                 );
               })}
@@ -500,132 +302,47 @@ export function ChatArea({
         </div>
       </div>
 
-      {/* Typing indicator */}
       {typingUsers.length > 0 && (
-        <div className="px-5 py-1">
-          <p className="text-xs text-neutral-400">
-            <span className="font-medium text-neutral-500">{typingUsers.join(", ")}</span>
-            {typingUsers.length === 1 ? " is" : " are"} typing...
-          </p>
-        </div>
-      )}
-
-      {/* Pending file previews */}
-      {pendingFiles.length > 0 && (
-        <div className="px-4 pt-2 shrink-0">
-          <div className="max-w-3xl mx-auto flex items-center gap-2 overflow-x-auto pb-1">
-            {pendingFiles.map((pf, i) => (
-              <div key={i} className="relative group shrink-0 rounded-lg border border-neutral-200 bg-neutral-50 overflow-hidden">
-                {pf.preview ? (
-                  <img src={pf.preview} alt={pf.file.name} className="h-20 w-20 object-cover" />
-                ) : (
-                  <div className="h-20 w-20 flex flex-col items-center justify-center gap-1 px-1">
-                    <FileText className="h-6 w-6 text-neutral-400" />
-                    <span className="text-[10px] text-neutral-500 truncate max-w-[72px] text-center">{pf.file.name}</span>
-                  </div>
-                )}
-                <button
-                  onClick={() => removePendingFile(i)}
-                  className="absolute top-1 right-1 h-5 w-5 rounded-full bg-neutral-900/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-            {uploading && (
-              <div className="h-20 w-20 shrink-0 rounded-lg border border-neutral-200 bg-neutral-50 flex items-center justify-center">
-                <div className="h-5 w-5 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin" />
-              </div>
-            )}
+        <div className="px-5 py-1.5 border-t border-neutral-100">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:0ms]" /><span className="w-1.5 h-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:150ms]" /><span className="w-1.5 h-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:300ms]" /></div>
+            <p className="text-xs text-neutral-400"><span className="font-medium text-neutral-500">{typingUsers.join(", ")}</span>{typingUsers.length === 1 ? " is" : " are"} typing</p>
           </div>
         </div>
       )}
 
-      {/* Reply preview bar */}
       {replyingTo && (
-        <div className="px-4 pt-1 shrink-0">
-          <div className="max-w-3xl mx-auto flex items-center gap-2 rounded-t-lg border border-b-0 border-neutral-200 bg-neutral-50 px-3 py-2">
-            <div className="h-full w-0.5 bg-blue-400 rounded-full self-stretch" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-medium text-blue-600">Replying to {replyingTo.username}</p>
-              <p className="text-[12px] text-neutral-500 truncate">{replyingTo.content}</p>
-            </div>
-            <button onClick={onCancelReply} className="shrink-0 text-neutral-400 hover:text-neutral-600 transition-colors">
-              <X className="h-4 w-4" />
-            </button>
+        <div className="px-4 pt-2 pb-0 shrink-0">
+          <div className="max-w-3xl mx-auto flex items-center gap-2 px-3 py-2 rounded-t-lg bg-neutral-50 border border-b-0 border-neutral-200">
+            <Reply className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
+            <span className="text-[13px] text-neutral-500 truncate flex-1">Replying to <span className="font-medium text-neutral-700">{replyingTo.username}</span>: {replyingTo.content.slice(0, 80)}</span>
+            <button onClick={onCancelReply} className="text-neutral-400 hover:text-neutral-600"><X className="h-3.5 w-3.5" /></button>
           </div>
         </div>
       )}
 
-      {/* Input */}
       <div className={`px-4 pb-4 ${replyingTo ? "pt-0" : "pt-1"} shrink-0`}>
         <div className={`max-w-3xl mx-auto ${replyingTo ? "rounded-b-xl rounded-t-none" : "rounded-xl"} border border-neutral-200 bg-neutral-50/80 shadow-sm focus-within:border-neutral-300 focus-within:bg-white focus-within:shadow-md transition-all duration-200`}>
           <div className="flex items-center gap-0.5 px-3 pt-2.5 pb-1">
-            <button type="button" title="Bold" onClick={() => wrapSelection("**", "**")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors text-xs font-bold">
-              B
-            </button>
-            <button type="button" title="Italic" onClick={() => wrapSelection("_", "_")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors text-xs italic">
-              I
-            </button>
-            <button type="button" title="Code" onClick={() => wrapSelection("`", "`")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors font-mono text-[11px]">
-              {"</>"}
-            </button>
+            <button type="button" title="Bold" onClick={() => wrapSelection("**", "**")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors text-xs font-bold">B</button>
+            <button type="button" title="Italic" onClick={() => wrapSelection("_", "_")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors text-xs italic">I</button>
+            <button type="button" title="Code" onClick={() => wrapSelection("`", "`")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors font-mono text-[11px]">&lt;/&gt;</button>
             <div className="h-4 w-px bg-neutral-200 mx-1" />
-            <button type="button" title="Link" onClick={() => wrapSelection("[", "](url)")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors">
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-            </button>
-            <button type="button" title="Blockquote" onClick={() => wrapSelection("> ", "")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors text-sm">
-              &ldquo;
-            </button>
+            <button type="button" title="Link" onClick={() => wrapSelection("[", "](url)")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors"><svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg></button>
+            <button type="button" title="Blockquote" onClick={() => wrapSelection("> ", "")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors text-sm">&ldquo;</button>
           </div>
           <div className="px-3 pb-1">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={handleInput}
-              onKeyDown={handleKeyDown}
-              placeholder={`Message #${roomName}`}
-              rows={1}
-              className="w-full bg-transparent text-[14px] text-neutral-900 placeholder:text-neutral-400 resize-none outline-none leading-relaxed min-h-[28px] max-h-[150px]"
-            />
+            <textarea ref={textareaRef} value={input} onChange={handleInput} onKeyDown={handleKeyDown} placeholder={`Message #${roomName}`} rows={1} className="w-full bg-transparent text-[14px] text-neutral-900 placeholder:text-neutral-400 resize-none outline-none leading-relaxed min-h-[28px] max-h-[150px]" />
           </div>
           <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
             <div className="flex items-center gap-0.5">
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,.pdf,.doc,.docx,.txt,.md,.csv,.json,.log,.zip"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <button
-                type="button"
-                title="Attach file (drag & drop also works)"
-                onClick={() => fileInputRef.current?.click()}
-                className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors"
-              >
-                <Paperclip className="h-3.5 w-3.5" />
-              </button>
-              <button type="button" title="Mention someone" className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors text-sm font-medium">
-                @
-              </button>
+              <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" />
+              <button type="button" title="Attach file" onClick={() => fileInputRef.current?.click()} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors"><Paperclip className="h-3.5 w-3.5" /></button>
+              <button type="button" title="Mention someone" className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors text-sm font-medium">@</button>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-neutral-300">
-                {(input.trim() || pendingFiles.length > 0) ? "Enter to send" : ""}
-              </span>
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() && pendingFiles.length === 0}
-                className={`h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-150 ${
-                  (input.trim() || pendingFiles.length > 0)
-                    ? "bg-neutral-900 text-white hover:bg-neutral-800 shadow-sm"
-                    : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
-                }`}
-              >
-                <SendHorizontal className="h-4 w-4" />
-              </button>
+              <span className="text-[11px] text-neutral-300">{input.trim() ? "Enter to send" : ""}</span>
+              <button onClick={handleSend} disabled={!input.trim()} className={`h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-150 ${input.trim() ? "bg-neutral-900 text-white hover:bg-neutral-800 shadow-sm" : "bg-neutral-200 text-neutral-400 cursor-not-allowed"}`}><SendHorizontal className="h-4 w-4" /></button>
             </div>
           </div>
         </div>
