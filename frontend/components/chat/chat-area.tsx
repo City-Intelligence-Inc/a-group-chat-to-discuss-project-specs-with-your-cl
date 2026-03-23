@@ -27,6 +27,8 @@ interface ChatAreaProps {
   onToggleMembers: () => void;
   showMembers: boolean;
   typingUsers?: string[];
+  onTyping?: () => void;
+  currentUserId?: string;
 }
 
 function formatTime(iso: string) {
@@ -91,6 +93,8 @@ export function ChatArea({
   onToggleMembers,
   showMembers,
   typingUsers = [],
+  onTyping,
+  currentUserId,
 }: ChatAreaProps) {
   const { user } = useUser();
   const [input, setInput] = useState("");
@@ -120,6 +124,8 @@ export function ChatArea({
     const el = e.target;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 150) + "px";
+    // Fire typing indicator
+    if (e.target.value.trim() && onTyping) onTyping();
   };
 
   // Toolbar helpers
@@ -210,15 +216,15 @@ export function ChatArea({
                   prev &&
                   prev.user_id === msg.user_id &&
                   new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < 300000;
-                const isOwn = msg.user_id === user?.id;
+                const isOwn = msg.user_id === (currentUserId || user?.id);
 
                 if (compact) {
                   return (
-                    <div key={msg.id} className="group relative -mx-5 px-5 py-[3px] hover:bg-neutral-50/80 transition-colors">
+                    <div key={msg.id} className="group relative -mx-5 px-5 py-[5px] hover:bg-neutral-50/80 transition-colors">
                       <span className="absolute left-5 top-1/2 -translate-y-1/2 hidden group-hover:inline text-[11px] text-neutral-400 tabular-nums">
                         {formatTime(msg.created_at)}
                       </span>
-                      <div className="pl-[52px] text-[15px] text-neutral-800 leading-[1.65]">
+                      <div className="pl-[56px] text-[15px] text-neutral-800 leading-[1.7]">
                         <MessageContent content={msg.content} />
                       </div>
                       {/* Delete button */}
@@ -236,7 +242,7 @@ export function ChatArea({
                 }
 
                 return (
-                  <div key={msg.id} className="group relative flex items-start gap-3 -mx-5 px-5 pt-2 pb-1 mt-3 first:mt-0 hover:bg-neutral-50/80 transition-colors">
+                  <div key={msg.id} className="group relative flex items-start gap-4 -mx-5 px-5 pt-2 pb-1 mt-4 first:mt-0 hover:bg-neutral-50/80 transition-colors">
                     <Avatar className="h-10 w-10 mt-0.5 shrink-0">
                       <AvatarImage src={msg.avatar_url} />
                       <AvatarFallback className="bg-neutral-200 text-neutral-600 text-sm font-medium">
@@ -252,7 +258,7 @@ export function ChatArea({
                           {formatTime(msg.created_at)}
                         </span>
                       </div>
-                      <div className="text-[15px] text-neutral-800 leading-[1.65] mt-0.5">
+                      <div className="text-[15px] text-neutral-800 leading-[1.7] mt-1">
                         <MessageContent content={msg.content} />
                       </div>
                     </div>
