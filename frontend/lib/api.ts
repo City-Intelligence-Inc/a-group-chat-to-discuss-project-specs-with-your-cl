@@ -144,8 +144,19 @@ export async function registerConnection(data: { id: string; user_id: string; ro
   });
 }
 
+export async function heartbeat(data: { user_id: string; room_id: string }) {
+  return apiFetch("/api/connections/heartbeat", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function removeConnection(id: string) {
   return apiFetch(`/api/connections/${id}`, { method: "DELETE" });
+}
+
+export async function removeUserRoomConnection(userId: string, roomId: string) {
+  return apiFetch(`/api/connections/user/${userId}/room/${roomId}`, { method: "DELETE" });
 }
 
 // ─── WebSocket ──────────────────────────────────────────────────────────────

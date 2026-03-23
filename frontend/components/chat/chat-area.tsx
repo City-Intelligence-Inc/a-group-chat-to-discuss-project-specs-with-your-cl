@@ -230,7 +230,7 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
   const [editContent, setEditContent] = useState("");
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [pendingFile, setPendingFile] = useState<{ name: string; size: number; type: string; content?: string; isText: boolean } | null>(null);
+  const [pendingFile, setPendingFile] = useState<{ name: string; size: number; type: string; content?: string; isText: boolean; previewUrl?: string; rawFile?: File } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -293,34 +293,50 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
     if (isTextFile(file)) {
       const reader = new FileReader();
       reader.onload = () => {
-        const text = reader.result as string;
-        // Only preview first 500 chars
         setPendingFile({
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          content: text,
-          isText: true,
+          name: file.name, size: file.size, type: file.type,
+          content: reader.result as string, isText: true, rawFile: file,
         });
       };
       reader.readAsText(file);
     } else {
+      // For images, create a preview URL
+      const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
       setPendingFile({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        isText: false,
+        name: file.name, size: file.size, type: file.type,
+        isText: false, previewUrl, rawFile: file,
       });
     }
   }, []);
 
-  const sendPendingFile = useCallback(() => {
+  const sendPendingFile = useCallback(async () => {
     if (!pendingFile) return;
+
     if (pendingFile.isText && pendingFile.content) {
       onSendMessage(`**📎 ${pendingFile.name}**\n\n${pendingFile.content}`);
-    } else {
-      onSendMessage(`📎 Shared: **${pendingFile.name}** (${(pendingFile.size / 1024).toFixed(1)} KB)`);
+      setPendingFile(null);
+      return;
     }
+
+    // Binary file — upload to S3
+    if (pendingFile.rawFile) {
+      try {
+        const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const formData = new FormData();
+        formData.append("file", pendingFile.rawFile);
+        const res = await fetch(`${API}/api/uploads`, { method: "POST", body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          const isImage = pendingFile.type.startsWith("image/");
+          onSendMessage(isImage ? `![${pendingFile.name}](${data.url})` : `📎 [${pendingFile.name}](${data.url})`);
+          setPendingFile(null);
+          return;
+        }
+      } catch {}
+    }
+
+    // Fallback if upload fails
+    onSendMessage(`📎 Shared: **${pendingFile.name}** (${(pendingFile.size / 1024).toFixed(1)} KB)`);
     setPendingFile(null);
   }, [pendingFile, onSendMessage]);
 
@@ -563,28 +579,38 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
         {/* File attachment preview */}
         {pendingFile && (
           <div className="max-w-3xl mx-auto mb-2">
-            <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-100 shrink-0">
-                {pendingFile.type.startsWith("image/") ? (
-                  <ImageIcon className="h-5 w-5 text-blue-500" />
-                ) : (
-                  <FileText className="h-5 w-5 text-neutral-400" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium text-neutral-900 truncate">{pendingFile.name}</p>
-                <p className="text-[11px] text-neutral-400">
-                  {(pendingFile.size / 1024).toFixed(1)} KB
-                  {pendingFile.isText && pendingFile.content && (
-                    <> &middot; {pendingFile.content.split("\n").length} lines</>
+            <div className="rounded-lg border border-neutral-200 bg-white overflow-hidden">
+              {/* Image preview */}
+              {pendingFile.previewUrl && (
+                <div className="bg-neutral-50 border-b border-neutral-200 p-3 flex justify-center">
+                  <img src={pendingFile.previewUrl} alt={pendingFile.name} className="max-h-[160px] rounded-md object-contain" />
+                </div>
+              )}
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-100 shrink-0">
+                  {pendingFile.type.startsWith("image/") ? (
+                    <ImageIcon className="h-5 w-5 text-purple-500" />
+                  ) : pendingFile.name.endsWith(".pdf") ? (
+                    <FileText className="h-5 w-5 text-red-500" />
+                  ) : (
+                    <FileText className="h-5 w-5 text-neutral-400" />
                   )}
-                  {pendingFile.isText ? " — content will be shared as message" : " — file info will be shared"}
-                </p>
-                {pendingFile.isText && pendingFile.content && (
-                  <pre className="mt-1.5 text-[11px] text-neutral-500 bg-white border border-neutral-200 rounded px-2 py-1.5 max-h-[60px] overflow-hidden font-mono leading-tight">
-                    {pendingFile.content.slice(0, 200)}{pendingFile.content.length > 200 ? "..." : ""}
-                  </pre>
-                )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium text-neutral-900 truncate">{pendingFile.name}</p>
+                  <p className="text-[11px] text-neutral-400">
+                    {(pendingFile.size / 1024).toFixed(1)} KB
+                    {pendingFile.isText && pendingFile.content && (
+                      <> &middot; {pendingFile.content.split("\n").length} lines</>
+                    )}
+                    {!pendingFile.isText && " — will upload to cloud"}
+                    {pendingFile.isText && " — content will be shared"}
+                  </p>
+                  {pendingFile.isText && pendingFile.content && (
+                    <pre className="mt-1.5 text-[11px] text-neutral-500 bg-neutral-50 border border-neutral-200 rounded px-2 py-1.5 max-h-[60px] overflow-hidden font-mono leading-tight">
+                      {pendingFile.content.slice(0, 200)}{pendingFile.content.length > 200 ? "..." : ""}
+                    </pre>
+                  )}
               </div>
               <button
                 onClick={() => setPendingFile(null)}
@@ -594,6 +620,7 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
                 <X className="h-4 w-4" />
               </button>
             </div>
+          </div>
           </div>
         )}
         <div className={`max-w-3xl mx-auto ${replyingTo ? "rounded-b-xl rounded-t-none" : "rounded-xl"} border border-neutral-200 bg-neutral-50/80 shadow-sm focus-within:border-neutral-300 focus-within:bg-white focus-within:shadow-md transition-all duration-200`}>

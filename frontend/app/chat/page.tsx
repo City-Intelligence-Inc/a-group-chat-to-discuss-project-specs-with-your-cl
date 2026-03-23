@@ -235,9 +235,12 @@ export default function ChatPage() {
     }
     loadRoom();
 
-    // Poll presence every 10s so we see other users come online
+    // Poll presence + send heartbeat every 10s
     const presenceInterval = setInterval(async () => {
       try {
+        // Send heartbeat to keep our connection alive
+        api.heartbeat({ user_id: user!.id, room_id: activeRoomId! }).catch(() => {});
+
         const [memberList, activeConns] = await Promise.all([
           api.listMembers(activeRoomId!),
           api.getActiveUsers(activeRoomId!),
@@ -262,11 +265,10 @@ export default function ChatPage() {
       } catch {}
     }, 10000);
 
-    // Clean up connection on room change
+    // Clean up connection on room change (using user+room, not UUID)
     return () => {
       clearInterval(presenceInterval);
-      const connId = `${user.id}-${activeRoomId}`;
-      api.removeConnection(connId).catch(() => {});
+      api.removeUserRoomConnection(user!.id, activeRoomId!).catch(() => {});
     };
   }, [activeRoomId, user]);
 
@@ -397,12 +399,38 @@ export default function ChatPage() {
       } catch {}
     };
 
+    const handleUserJoined = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        const joinedId = data.userId || data.user_id;
+        if (joinedId) {
+          setMembers((prev) =>
+            prev.map((m) => m.user_id === joinedId ? { ...m, is_online: true } : m)
+          );
+        }
+      } catch {}
+    };
+
+    const handleUserLeft = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        const leftId = data.userId || data.user_id;
+        if (leftId) {
+          setMembers((prev) =>
+            prev.map((m) => m.user_id === leftId ? { ...m, is_online: false } : m)
+          );
+        }
+      } catch {}
+    };
+
     sse.addEventListener("new_message", handleNewMessage);
     sse.addEventListener("typing", handleTyping);
     sse.addEventListener("stop_typing", handleStopTyping);
     sse.addEventListener("message_deleted", handleDeleteMessage);
     sse.addEventListener("message_edited", handleEdited);
     sse.addEventListener("reaction_update", handleReaction);
+    sse.addEventListener("user_joined", handleUserJoined);
+    sse.addEventListener("user_left", handleUserLeft);
     sse.onmessage = handleNewMessage;
 
     return () => {
@@ -444,19 +472,23 @@ export default function ChatPage() {
       const replyData = replyingTo
         ? { reply_to: replyingTo.sort_key || null, reply_preview: replyingTo.content.slice(0, 100), reply_username: replyingTo.username }
         : {};
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: tempId,
-          user_id: user.id,
-          username: user.fullName || user.username || "User",
-          avatar_url: user.imageUrl,
-          content,
-          created_at: new Date().toISOString(),
-          reactions: {},
-          ...replyData,
-        },
-      ]);
+      setMessages((prev) => {
+        const next = [
+          ...prev,
+          {
+            id: tempId,
+            user_id: user.id,
+            username: user.fullName || user.username || "User",
+            avatar_url: user.imageUrl,
+            content,
+            created_at: new Date().toISOString(),
+            reactions: {},
+            ...replyData,
+          },
+        ];
+        next.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        return next;
+      });
       setReplyingTo(null);
 
       try {
