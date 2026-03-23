@@ -44,6 +44,7 @@ export default function ChatPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -615,13 +616,31 @@ export default function ChatPage() {
           rooms={rooms}
         />
       )}
-      <Sidebar
-        rooms={rooms}
-        activeRoomId={activeRoomId}
-        onSelectRoom={setActiveRoomId}
-        onCreateRoom={handleCreateRoom}
-        onOpenSearch={() => setSearchOpen(true)}
-      />
+      {/* Mobile sidebar overlay */}
+      {showSidebar && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setShowSidebar(false)} />
+          <div className="relative z-50 h-full w-[280px]">
+            <Sidebar
+              rooms={rooms}
+              activeRoomId={activeRoomId}
+              onSelectRoom={(id) => { setActiveRoomId(id); setShowSidebar(false); }}
+              onCreateRoom={handleCreateRoom}
+              onOpenSearch={() => { setSearchOpen(true); setShowSidebar(false); }}
+            />
+          </div>
+        </div>
+      )}
+      {/* Desktop sidebar */}
+      <div className="hidden md:block">
+        <Sidebar
+          rooms={rooms}
+          activeRoomId={activeRoomId}
+          onSelectRoom={setActiveRoomId}
+          onCreateRoom={handleCreateRoom}
+          onOpenSearch={() => setSearchOpen(true)}
+        />
+      </div>
       <ChatArea
         roomName={activeRoom?.name || "general"}
         roomDescription={activeRoom?.description}
@@ -638,8 +657,11 @@ export default function ChatPage() {
         replyingTo={replyingTo}
         onReply={setReplyingTo}
         onCancelReply={() => setReplyingTo(null)}
+        onOpenSidebar={() => setShowSidebar(true)}
       />
-      {showMembers && <MembersPanel members={members} />}
+      <div className="hidden lg:block">
+        {showMembers && <MembersPanel members={members} />}
+      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Hash, Users, SendHorizontal, Paperclip, Trash2, Pencil, Reply, X, SmilePlus, Check, FileText, Image as ImageIcon } from "lucide-react";
+import { Hash, Users, SendHorizontal, Paperclip, Trash2, Pencil, Reply, X, SmilePlus, Check, Menu } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -37,6 +37,7 @@ interface ChatAreaProps {
   replyingTo?: Message | null;
   onReply?: (msg: Message) => void;
   onCancelReply?: () => void;
+  onOpenSidebar?: () => void;
 }
 
 const QUICK_EMOJIS = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F389}", "\u{1F440}", "\u{1F525}", "\u{1F64F}", "\u{2705}"];
@@ -224,7 +225,7 @@ function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void;
   );
 }
 
-export function ChatArea({ roomName, roomDescription, messages, onSendMessage, onDeleteMessage, onEditMessage, onToggleReaction, onToggleMembers, showMembers, typingUsers = [], onTyping, currentUserId, replyingTo, onReply, onCancelReply }: ChatAreaProps) {
+export function ChatArea({ roomName, roomDescription, messages, onSendMessage, onDeleteMessage, onEditMessage, onToggleReaction, onToggleMembers, showMembers, typingUsers = [], onTyping, currentUserId, replyingTo, onReply, onCancelReply, onOpenSidebar }: ChatAreaProps) {
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -501,6 +502,11 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
       )}
       <div className="flex items-center justify-between px-5 h-12 border-b border-neutral-200 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
+          {onOpenSidebar && (
+            <button onClick={onOpenSidebar} className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-md text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors -ml-1">
+              <Menu className="h-4 w-4" />
+            </button>
+          )}
           <Hash className="h-4 w-4 text-neutral-400 shrink-0" />
           <h1 className="text-[15px] font-semibold text-neutral-900 truncate">{roomName}</h1>
           {roomDescription && (<><span className="mx-1 h-3.5 w-px bg-neutral-200" /><span className="text-[13px] text-neutral-400 truncate">{roomDescription}</span></>)}
