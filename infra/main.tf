@@ -222,6 +222,76 @@ resource "aws_dynamodb_table" "connections" {
 }
 
 # =============================================================================
+# 6. S3 BUCKET — FILE UPLOADS
+#    Bucket for chat file uploads (images, documents, etc.)
+#    CORS allows uploads from any origin (for the demo).
+#    Lifecycle rule expires objects after 30 days to avoid cost buildup.
+# =============================================================================
+resource "aws_s3_bucket" "uploads" {
+  bucket = "${local.prefix}-uploads"
+
+  tags = {
+    Environment = var.environment
+    Project     = "chatroom"
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    allowed_origins = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3600
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+
+  rule {
+    id     = "expire-uploads-after-30-days"
+    status = "Enabled"
+
+    expiration {
+      days = 30
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# NOTE: The App Runner instance role "chatroom-apprunner-instance" is managed
+# via CLI, not Terraform. To grant S3 access for file uploads, attach an
+# inline policy (or update the existing one) on that role with the following
+# permissions:
+#
+#   {
+#     "Effect": "Allow",
+#     "Action": [
+#       "s3:PutObject",
+#       "s3:GetObject",
+#       "s3:DeleteObject"
+#     ],
+#     "Resource": "arn:aws:s3:::chatroom-<env>-uploads/*"
+#   }
+#
+# Example AWS CLI command:
+#   aws iam put-role-policy \
+#     --role-name chatroom-apprunner-instance \
+#     --policy-name S3UploadsAccess \
+#     --policy-document file://s3-uploads-policy.json
+
+# =============================================================================
 # OUTPUTS
 # =============================================================================
 output "users_table_name" {
@@ -262,4 +332,12 @@ output "connections_table_name" {
 
 output "connections_table_arn" {
   value = aws_dynamodb_table.connections.arn
+}
+
+output "uploads_bucket_name" {
+  value = aws_s3_bucket.uploads.bucket
+}
+
+output "uploads_bucket_arn" {
+  value = aws_s3_bucket.uploads.arn
 }
