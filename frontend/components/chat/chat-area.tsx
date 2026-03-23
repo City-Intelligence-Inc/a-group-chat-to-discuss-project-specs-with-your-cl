@@ -146,9 +146,11 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => { if (replyingTo) textareaRef.current?.focus(); }, [replyingTo]);
@@ -206,6 +208,72 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
       } catch { /* upload failed */ }
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [onSendMessage]);
+
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      // For text-based files, read and paste content
+      if (file.name.match(/\.(md|txt|markdown|json|csv|log|pdf)$/i) || file.type.startsWith("text/")) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = reader.result as string;
+          const header = `**📎 ${file.name}**\n\n`;
+          setInput((prev) => prev ? prev + "\n" + header + text : header + text);
+          textareaRef.current?.focus();
+        };
+        reader.readAsText(file);
+      } else {
+        // For binary files (images etc.), try the upload endpoint
+        try {
+          const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          const formData = new FormData();
+          formData.append("file", file);
+          const res = await fetch(`${API}/api/uploads/`, { method: "POST", body: formData });
+          if (res.ok) {
+            const data = await res.json();
+            const isImage = file.type.startsWith("image/");
+            onSendMessage(isImage ? `![${file.name}](${data.url})` : `📎 [${file.name}](${data.url})`);
+          } else {
+            // Fallback: just mention the file name
+            onSendMessage(`📎 Shared file: **${file.name}** (${(file.size / 1024).toFixed(1)} KB)`);
+          }
+        } catch {
+          onSendMessage(`📎 Shared file: **${file.name}** (${(file.size / 1024).toFixed(1)} KB)`);
+        }
+      }
+    }
   }, [onSendMessage]);
 
   const groups: { label: string; msgs: Message[] }[] = [];
@@ -303,7 +371,23 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
   };
 
   return (
-    <div className="flex flex-col flex-1 min-w-0 bg-white">
+    <div
+      className="flex flex-col flex-1 min-w-0 bg-white relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drop zone overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-sm border-2 border-dashed border-neutral-300 rounded-lg m-2 pointer-events-none">
+          <div className="text-center">
+            <Paperclip className="h-8 w-8 text-neutral-400 mx-auto mb-2" />
+            <p className="text-[15px] font-semibold text-neutral-700">Drop file to share</p>
+            <p className="text-[13px] text-neutral-400 mt-0.5">.md, .txt, images, and more</p>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between px-5 h-12 border-b border-neutral-200 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <Hash className="h-4 w-4 text-neutral-400 shrink-0" />
