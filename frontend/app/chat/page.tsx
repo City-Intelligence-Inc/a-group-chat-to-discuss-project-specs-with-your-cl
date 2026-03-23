@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { Sidebar } from "@/components/chat/sidebar";
 import { ChatArea } from "@/components/chat/chat-area";
 import { MembersPanel } from "@/components/chat/members-panel";
@@ -32,6 +32,7 @@ interface Member {
 
 export default function ChatPage() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(true);
@@ -42,6 +43,11 @@ export default function ChatPage() {
   const sseRef = useRef<EventSource | null>(null);
   // Map of userId -> { username, avatar_url } for enriching messages
   const userMapRef = useRef<Map<string, { username: string; avatar_url?: string }>>(new Map());
+
+  // Set up auth token provider for API calls
+  useEffect(() => {
+    api.setTokenProvider(getToken);
+  }, [getToken]);
 
   // Sync user to backend + populate user map + check onboarding
   useEffect(() => {

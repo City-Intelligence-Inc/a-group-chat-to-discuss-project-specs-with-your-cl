@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 import uuid
 
 from app.db import chat_rooms_table, room_members_table
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/api/rooms", tags=["Chat Rooms"])
 
@@ -39,7 +40,7 @@ def get_room(room_id: str):
 
 # ─── POST /api/rooms ── Create a room ───────────────────────────────────────
 @router.post("/", status_code=201)
-def create_room(body: RoomCreate):
+def create_room(body: RoomCreate, user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc).isoformat()
     room_id = str(uuid.uuid4())
 
@@ -95,7 +96,7 @@ def update_room(room_id: str, body: RoomUpdate):
 
 # ─── DELETE /api/rooms/{room_id} ── Delete room ─────────────────────────────
 @router.delete("/{room_id}")
-def delete_room(room_id: str):
+def delete_room(room_id: str, user: dict = Depends(get_current_user)):
     chat_rooms_table.delete_item(Key={"roomId": room_id})
     return {"message": "Room deleted"}
 

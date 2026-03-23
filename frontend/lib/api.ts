@@ -1,14 +1,28 @@
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
 
+// Auth token management — set by the chat page once Clerk is ready
+let _getToken: (() => Promise<string | null>) | null = null;
+
+export function setTokenProvider(fn: () => Promise<string | null>) {
+  _getToken = fn;
+}
+
 async function apiFetch(path: string, opts?: RequestInit) {
-  const res = await fetch(`${API}${path}`, {
-    ...opts,
-    headers: {
-      "Content-Type": "application/json",
-      ...opts?.headers,
-    },
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(opts?.headers as Record<string, string>),
+  };
+
+  // Attach Clerk JWT if available
+  if (_getToken) {
+    try {
+      const token = await _getToken();
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    } catch {}
+  }
+
+  const res = await fetch(`${API}${path}`, { ...opts, headers });
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
   return res.json();
 }

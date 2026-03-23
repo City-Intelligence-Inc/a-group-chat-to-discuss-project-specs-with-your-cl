@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from datetime import datetime, timezone
+from typing import Optional
+from datetime import datetime, timezone, timedelta
 
 from app.db import room_members_table, chat_rooms_table, users_table
 
@@ -79,6 +80,29 @@ def join_room(room_id: str, body: JoinRoom):
 def leave_room(room_id: str, user_id: str):
     room_members_table.delete_item(Key={"roomId": room_id, "userId": user_id})
     return {"message": "Left room"}
+
+
+# ─── PATCH /api/members/{room_id}/read/{user_id} ── Mark room as read ───────
+@router.patch("/{room_id}/read/{user_id}")
+def mark_read(room_id: str, user_id: str):
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        room_members_table.update_item(
+            Key={"roomId": room_id, "userId": user_id},
+            UpdateExpression="SET lastReadAt = :now",
+            ExpressionAttributeValues={":now": now},
+        )
+    except Exception:
+        pass
+    return {"lastReadAt": now}
+
+
+# ─── GET /api/members/{room_id}/read/{user_id} ── Get last read timestamp ───
+@router.get("/{room_id}/read/{user_id}")
+def get_read(room_id: str, user_id: str):
+    result = room_members_table.get_item(Key={"roomId": room_id, "userId": user_id})
+    item = result.get("Item", {})
+    return {"lastReadAt": item.get("lastReadAt")}
 
 
 # ─── DELETE /api/members/{room_id}/kick/{user_id} ── Kick member (admin) ────

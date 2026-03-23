@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
@@ -6,6 +6,7 @@ from urllib.parse import unquote
 import uuid
 
 from app.db import messages_table
+from app.auth import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api/messages", tags=["Messages"])
 
@@ -53,7 +54,9 @@ def get_messages(room_id: str, limit: int = 50, cursor: Optional[str] = None):
 
 # ─── POST /api/messages/{room_id} ── Send a message ─────────────────────────
 @router.post("/{room_id}", status_code=201)
-def send_message(room_id: str, body: MessageCreate):
+def send_message(room_id: str, body: MessageCreate, user: dict = Depends(get_current_user)):
+    # Use authenticated user ID if available, fall back to body.sender_id
+    sender_id = user.get("sub") if user.get("sub") != "anonymous" else body.sender_id
     message_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     sort_key = f"{now}#{message_id}"
@@ -62,7 +65,7 @@ def send_message(room_id: str, body: MessageCreate):
         "roomId": room_id,
         "sortKey": sort_key,
         "messageId": message_id,
-        "senderId": body.sender_id,
+        "senderId": sender_id,
         "senderName": body.sender_name,
         "content": body.content,
         "type": body.type,
@@ -98,9 +101,14 @@ def edit_message(room_id: str, sort_key: str, body: MessageEdit):
 
 # ─── DELETE /api/messages/{room_id}/{sort_key} ── Delete a message ───────────
 @router.delete("/{room_id}/{sort_key}")
-def delete_message(room_id: str, sort_key: str):
+def delete_message(room_id: str, sort_key: str, user: dict = Depends(get_current_user)):
     decoded_key = unquote(sort_key)
     messages_table.delete_item(Key={"roomId": room_id, "sortKey": decoded_key})
+
+    # Broadcast deletion via SSE so all clients remove the message
+    from app.routes.sse import publish
+    publish(room_id, "message_deleted", {"roomId": room_id, "sortKey": decoded_key})
+
     return {"message": "Message deleted"}
 
 
