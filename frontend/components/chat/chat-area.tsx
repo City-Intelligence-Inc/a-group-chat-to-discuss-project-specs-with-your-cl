@@ -100,21 +100,21 @@ function ReactionBar({ reactions, currentUserId, onToggle }: { reactions: Record
   const entries = Object.entries(reactions).filter(([, users]) => users.length > 0);
   if (entries.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-1.5 mt-2">
+    <div className="flex flex-wrap gap-1 mt-1.5">
       {entries.map(([emoji, users]) => {
         const active = currentUserId && users.includes(currentUserId);
         return (
           <button
             key={emoji}
             onClick={() => onToggle(emoji)}
-            className={`inline-flex items-center gap-1 h-7 px-2 rounded-md text-[12px] border transition-all duration-150 ${
+            className={`inline-flex items-center gap-1 h-6 px-1.5 rounded-full text-[11px] border transition-all duration-150 ${
               active
-                ? "bg-blue-50 border-blue-300 text-blue-700 shadow-sm shadow-blue-100"
+                ? "bg-blue-50 border-blue-200 text-blue-700"
                 : "bg-neutral-50 border-neutral-200 text-neutral-600 hover:bg-neutral-100 hover:border-neutral-300"
             }`}
           >
-            <span className="text-sm leading-none">{emoji}</span>
-            <span className="tabular-nums font-semibold">{users.length}</span>
+            <span className="text-[13px] leading-none">{emoji}</span>
+            <span className="tabular-nums font-medium">{users.length}</span>
           </button>
         );
       })}
@@ -293,11 +293,11 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
     else { groups[groups.length - 1].msgs.push(msg); }
   }
 
-  const actionBtn = "h-8 w-8 rounded-md flex items-center justify-center transition-all duration-100";
-  const actionIcon = "h-[15px] w-[15px] stroke-[1.75]";
+  const actionBtn = "h-7 w-7 rounded-md flex items-center justify-center transition-all duration-100";
+  const actionIcon = "h-[14px] w-[14px] stroke-[1.75]";
 
   const renderActions = (msg: Message, isOwn: boolean) => (
-    <div className="absolute -top-4 right-5 hidden group-hover:flex items-center rounded-lg bg-white border border-neutral-200/80 shadow-md shadow-neutral-200/40 px-0.5 py-0.5 z-10">
+    <div className="absolute -top-3 right-5 hidden group-hover:flex items-center rounded-lg bg-white border border-neutral-200 shadow-sm px-0.5 py-0.5 z-10">
       {onToggleReaction && msg.sort_key && (
         <div className="relative">
           <button
@@ -361,10 +361,14 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
   const renderContent = (msg: Message, isOwn: boolean) => {
     if (editingId === msg.id) {
       return (
-        <div className="flex items-center gap-2 mt-0.5">
-          <input type="text" value={editContent} onChange={(e) => setEditContent(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmEdit(msg); if (e.key === "Escape") cancelEdit(); }} className="flex-1 text-[14px] bg-neutral-50 border border-neutral-200 rounded-md px-2 py-1 outline-none focus:border-neutral-400" autoFocus />
-          <button onClick={() => confirmEdit(msg)} className="h-6 w-6 rounded flex items-center justify-center text-emerald-600 hover:bg-emerald-50"><Check className="h-3.5 w-3.5" /></button>
-          <button onClick={cancelEdit} className="h-6 w-6 rounded flex items-center justify-center text-neutral-400 hover:bg-neutral-100"><X className="h-3.5 w-3.5" /></button>
+        <div className="mt-1">
+          <input type="text" value={editContent} onChange={(e) => setEditContent(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmEdit(msg); if (e.key === "Escape") cancelEdit(); }} className="w-full text-[15px] bg-white border border-neutral-300 rounded-lg px-3 py-2 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100" autoFocus />
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <span className="text-[11px] text-neutral-400">Enter to save, Esc to cancel</span>
+            <div className="flex-1" />
+            <button onClick={cancelEdit} className="h-6 px-2 rounded text-[11px] text-neutral-500 hover:bg-neutral-100">Cancel</button>
+            <button onClick={() => confirmEdit(msg)} className="h-6 px-2 rounded text-[11px] font-medium text-blue-600 hover:bg-blue-50">Save</button>
+          </div>
         </div>
       );
     }
@@ -372,7 +376,7 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
       <>
         <div className="text-[15px] text-neutral-800 leading-[1.7] mt-0.5">
           <MessageContent content={msg.content} />
-          {msg.edited_at && <span className="text-[11px] text-neutral-400 ml-1">(edited)</span>}
+          {msg.edited_at && <span className="text-[11px] text-neutral-300 ml-1.5 select-none">(edited)</span>}
         </div>
         {msg.reactions && onToggleReaction && msg.sort_key && <ReactionBar reactions={msg.reactions} currentUserId={currentUserId} onToggle={(emoji) => onToggleReaction(msg.id, msg.sort_key!, emoji)} />}
       </>
@@ -452,20 +456,27 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
       </div>
 
       {typingUsers.length > 0 && (
-        <div className="px-5 py-1.5 border-t border-neutral-100">
-          <div className="flex items-center gap-2">
-            <div className="flex gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:0ms]" /><span className="w-1.5 h-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:150ms]" /><span className="w-1.5 h-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:300ms]" /></div>
-            <p className="text-xs text-neutral-400"><span className="font-medium text-neutral-500">{typingUsers.join(", ")}</span>{typingUsers.length === 1 ? " is" : " are"} typing</p>
+        <div className="px-5 py-1.5">
+          <div className="flex items-center gap-2 max-w-3xl mx-auto">
+            <div className="flex gap-[3px]">
+              <span className="w-[5px] h-[5px] rounded-full bg-neutral-400 animate-pulse" />
+              <span className="w-[5px] h-[5px] rounded-full bg-neutral-400 animate-pulse [animation-delay:200ms]" />
+              <span className="w-[5px] h-[5px] rounded-full bg-neutral-400 animate-pulse [animation-delay:400ms]" />
+            </div>
+            <p className="text-[12px] text-neutral-400"><span className="font-medium text-neutral-500">{typingUsers.join(", ")}</span> {typingUsers.length === 1 ? "is" : "are"} typing...</p>
           </div>
         </div>
       )}
 
       {replyingTo && (
         <div className="px-4 pt-2 pb-0 shrink-0">
-          <div className="max-w-3xl mx-auto flex items-center gap-2 px-3 py-2 rounded-t-lg bg-neutral-50 border border-b-0 border-neutral-200">
-            <Reply className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
-            <span className="text-[13px] text-neutral-500 truncate flex-1">Replying to <span className="font-medium text-neutral-700">{replyingTo.username}</span>: {replyingTo.content.slice(0, 80)}</span>
-            <button onClick={onCancelReply} className="text-neutral-400 hover:text-neutral-600"><X className="h-3.5 w-3.5" /></button>
+          <div className="max-w-3xl mx-auto flex items-center gap-3 px-4 py-2.5 rounded-t-lg bg-neutral-50 border border-b-0 border-neutral-200">
+            <div className="w-0.5 h-5 rounded-full bg-blue-400 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-blue-600">Replying to {replyingTo.username}</p>
+              <p className="text-[12px] text-neutral-500 truncate">{replyingTo.content.slice(0, 100)}</p>
+            </div>
+            <button onClick={onCancelReply} className="h-6 w-6 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-600 hover:bg-neutral-200/60 transition-colors shrink-0"><X className="h-3.5 w-3.5" /></button>
           </div>
         </div>
       )}
@@ -474,12 +485,12 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
         {/* File attachment preview */}
         {pendingFile && (
           <div className="max-w-3xl mx-auto mb-2">
-            <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-neutral-200 shrink-0">
+            <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-100 shrink-0">
                 {pendingFile.type.startsWith("image/") ? (
                   <ImageIcon className="h-5 w-5 text-blue-500" />
                 ) : (
-                  <FileText className="h-5 w-5 text-neutral-500" />
+                  <FileText className="h-5 w-5 text-neutral-400" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
