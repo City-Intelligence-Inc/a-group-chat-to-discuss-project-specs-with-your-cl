@@ -23,12 +23,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "00 - Home.md",
+                "file": "architecture/Overview.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "00 - Home"
+              "title": "Overview"
             }
           }
         ],
@@ -196,6 +196,11 @@
   },
   "active": "005cc29034e5260f",
   "lastOpenFiles": [
+    "mobile/Auth.md",
+    "mobile/Components.md",
+    "mobile/Overview.md",
+    "mobile",
+    "00 - Home.md",
     "interview/Talking Points.md",
     "interview/Hot Partition Problem.md",
     "interview/Design Decisions.md",
@@ -212,7 +217,6 @@
     "backend/Real-time.md",
     "backend/API Reference.md",
     "architecture/Overview.md",
-    "Untitled.md",
-    "00 - Home.md"
+    "Untitled.md"
   ]
 }

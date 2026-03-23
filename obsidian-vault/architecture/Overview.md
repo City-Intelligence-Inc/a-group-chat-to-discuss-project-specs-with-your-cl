@@ -4,14 +4,16 @@
 
 | Layer | Technology | Why |
 |-------|-----------|-----|
-| Frontend | Next.js 16 + React 19 + TypeScript | Latest React, SSR, file-based routing |
-| Styling | Tailwind CSS 4 + shadcn/ui | Utility-first, consistent component library |
-| Auth | Clerk | Drop-in auth, handles JWT, user management |
+| Web Frontend | Next.js 16 + React 19 + TypeScript | Latest React, SSR, file-based routing |
+| Mobile Frontend | React Native (Expo SDK 55) + TypeScript | Cross-platform iOS/Android |
+| Styling (web) | Tailwind CSS 4 + shadcn/ui | Utility-first, consistent component library |
+| Auth | Clerk (web + mobile) | Drop-in auth, handles JWT, OAuth, user management |
 | Backend | FastAPI (Python) | Async, auto-generates OpenAPI docs, fast |
 | Database | DynamoDB (5 tables) | Serverless, zero idle cost, scales automatically |
 | Real-time | SSE + WebSocket | SSE for App Runner (no WS upgrade), WS for local |
 | Infra | Terraform | Declarative, reproducible infrastructure |
-| Deployment | Docker + ECR + AWS App Runner | Managed container hosting, auto-scaling |
+| Backend Deploy | Docker + ECR + AWS App Runner | Managed container hosting, auto-scaling |
+| Mobile Deploy | EAS Build + TestFlight | Cloud build for iOS distribution |
 
 ## Data Flow
 
@@ -55,8 +57,13 @@
 | `frontend/app/chat/page.tsx` | Main chat page (state management) |
 | `frontend/lib/api.ts` | API client (field normalization) |
 | `frontend/components/chat/*` | Sidebar, ChatArea, MembersPanel |
+| `mobile-app/App.tsx` | Mobile app entry (Clerk + Navigation) |
+| `mobile-app/src/screens/*` | Chat, SignIn, SignUp screens |
+| `mobile-app/src/components/chat/*` | Mobile Sidebar, ChatArea, MembersPanel |
+| `mobile-app/src/services/api.ts` | Mobile API client |
 
 ## Related
 - [[data-model/Tables Overview]]
 - [[backend/API Reference]]
 - [[interview/Design Decisions]]
+- [[mobile/Overview]]

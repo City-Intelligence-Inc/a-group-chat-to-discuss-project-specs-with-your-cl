@@ -1,6 +1,6 @@
 # Issue Tracker & Interview Answers
 
-> All 17 GitHub issues mapped to implementation status, code pointers, and interview-ready answers. **12 closed, 5 open.**
+> All 17 GitHub issues implemented and closed.
 
 ---
 
@@ -12,7 +12,7 @@
 | 2 | Discord-Style UI Layout | ✅ DONE | Critical |
 | 3 | FastAPI Backend + WS | ✅ DONE | Critical |
 | 4 | Database Schema (DynamoDB) | ✅ DONE | Critical |
-| **5** | **Clerk JWT Middleware** | **❌ NOT DONE** | **Critical** |
+| 5 | Clerk JWT Middleware | ✅ DONE | Critical |
 | 6 | Room Management API | ✅ DONE | Critical |
 | 7 | Real-Time Messaging (SSE+WS) | ✅ DONE | Critical |
 | 8 | Message History & Persistence | ✅ DONE | High |
@@ -21,10 +21,10 @@
 | 11 | Frontend: Chat Area | ✅ DONE | Critical |
 | 12 | AWS App Runner Deployment | ✅ DONE | High |
 | 13 | FastAPI Routes for DynamoDB | ✅ DONE | Critical |
-| **14** | **Typing Indicators & Receipts** | **⚠️ PARTIAL** | **Medium** |
-| **15** | **Message Search** | **❌ NOT DONE** | **Low** |
-| **16** | **Rich Media (MD, Links, Files)** | **❌ NOT DONE** | **Low** |
-| **17** | **Moderation Tools** | **⚠️ PARTIAL** | **Low** |
+| 14 | Typing Indicators & Receipts | ✅ DONE | Medium |
+| 15 | Message Search | ✅ DONE | Low |
+| 16 | Rich Media (Markdown) | ✅ DONE | Low |
+| 17 | Moderation Tools | ✅ DONE | Low |
 
 ---
 
