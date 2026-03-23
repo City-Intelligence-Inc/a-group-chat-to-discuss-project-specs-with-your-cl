@@ -9,12 +9,17 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { useSignUp } from '@clerk/clerk-expo';
+import { useSignUp, useOAuth } from '@clerk/clerk-expo';
+import * as WebBrowser from 'expo-web-browser';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Fonts } from '../constants/theme';
 
+WebBrowser.maybeCompleteAuthSession();
+
 export default function SignUpScreen() {
   const { signUp, setActive, isLoaded } = useSignUp();
+  const { startOAuthFlow: startGoogle } = useOAuth({ strategy: 'oauth_google' });
+  const { startOAuthFlow: startApple } = useOAuth({ strategy: 'oauth_apple' });
   const navigation = useNavigation<any>();
 
   const [email, setEmail] = useState('');
@@ -24,6 +29,21 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [pendingVerification, setPendingVerification] = useState(false);
   const [code, setCode] = useState('');
+
+  const handleOAuth = useCallback(async (startFlow: typeof startGoogle) => {
+    setError('');
+    setLoading(true);
+    try {
+      const { createdSessionId, setActive: setOAuthActive } = await startFlow();
+      if (createdSessionId && setOAuthActive) {
+        await setOAuthActive({ session: createdSessionId });
+      }
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || 'Sign up failed');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const handleSignUp = useCallback(async () => {
     if (!isLoaded) return;
@@ -104,6 +124,30 @@ export default function SignUpScreen() {
         <Text style={styles.subtitle}>Join Townhall</Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <TouchableOpacity
+          style={styles.oauthButton}
+          onPress={() => handleOAuth(startGoogle)}
+          disabled={loading}
+        >
+          <Text style={styles.oauthIcon}>G</Text>
+          <Text style={styles.oauthText}>Continue with Google</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.oauthButton}
+          onPress={() => handleOAuth(startApple)}
+          disabled={loading}
+        >
+          <Text style={styles.oauthIcon}>{'\uF8FF'}</Text>
+          <Text style={styles.oauthText}>Continue with Apple</Text>
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
 
         <Text style={styles.label}>Username</Text>
         <TextInput
@@ -241,5 +285,41 @@ const styles = StyleSheet.create({
   linkBold: {
     color: Colors.text,
     fontWeight: '600',
+  },
+  oauthButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  oauthIcon: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginRight: 10,
+    color: Colors.text,
+  },
+  oauthText: {
+    fontSize: Fonts.regular,
+    fontWeight: '500',
+    color: Colors.text,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    color: Colors.textMuted,
+    fontSize: Fonts.caption,
   },
 });

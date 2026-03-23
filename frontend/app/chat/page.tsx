@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/chat/sidebar";
 import { ChatArea } from "@/components/chat/chat-area";
 import { MembersPanel } from "@/components/chat/members-panel";
 import { Onboarding } from "@/components/chat/onboarding";
+import { SearchModal } from "@/components/chat/search-modal";
 import * as api from "@/lib/api";
 
 interface Room {
@@ -23,6 +24,11 @@ interface Message {
   content: string;
   created_at: string;
   sort_key?: string;
+  reactions?: Record<string, string[]>;
+  edited_at?: string | null;
+  reply_to?: string | null;
+  reply_preview?: string | null;
+  reply_username?: string | null;
 }
 
 interface Member {
@@ -43,6 +49,8 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const sseRef = useRef<EventSource | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
@@ -55,6 +63,18 @@ export default function ChatPage() {
   useEffect(() => {
     api.setTokenProvider(getToken);
   }, [getToken]);
+
+  // Cmd+K search shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen((s) => !s);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Sync user to backend + populate user map + check onboarding
   useEffect(() => {
@@ -180,16 +200,21 @@ export default function ChatPage() {
         }
 
         // Enrich messages
-        const msgs: Message[] = msgData.messages.map((m: { id: string; sender_id: string; sender_name: string; content: string; created_at: string; sort_key?: string }) => {
-          const cached = umap.get(m.sender_id);
+        const msgs: Message[] = msgData.messages.map((m: Record<string, unknown>) => {
+          const sid = (m.sender_id || "") as string;
+          const cached = umap.get(sid);
           return {
-            id: m.id,
-            user_id: m.sender_id,
-            username: cached?.username || m.sender_name || m.sender_id,
+            id: m.id as string,
+            user_id: sid,
+            username: cached?.username || (m.sender_name as string) || sid,
             avatar_url: cached?.avatar_url,
-            content: m.content,
-            created_at: m.created_at,
-            sort_key: m.sort_key,
+            content: m.content as string,
+            created_at: m.created_at as string,
+            sort_key: m.sort_key as string | undefined,
+            reactions: (m.reactions as Record<string, string[]>) || {},
+            edited_at: (m.edited_at as string) || null,
+            reply_to: (m.reply_to as string) || null,
+            reply_preview: (m.reply_preview as string) || null,
           };
         });
         setMessages(msgs);
@@ -338,10 +363,42 @@ export default function ChatPage() {
       } catch {}
     };
 
+    const handleEdited = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        const key = data.sortKey || data.sort_key;
+        if (key) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.sort_key === key
+                ? { ...m, content: data.content, edited_at: data.editedAt || data.edited_at }
+                : m
+            )
+          );
+        }
+      } catch {}
+    };
+
+    const handleReaction = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        const key = data.sortKey || data.sort_key;
+        if (key) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.sort_key === key ? { ...m, reactions: data.reactions || {} } : m
+            )
+          );
+        }
+      } catch {}
+    };
+
     sse.addEventListener("new_message", handleNewMessage);
     sse.addEventListener("typing", handleTyping);
     sse.addEventListener("stop_typing", handleStopTyping);
     sse.addEventListener("message_deleted", handleDeleteMessage);
+    sse.addEventListener("message_edited", handleEdited);
+    sse.addEventListener("reaction_update", handleReaction);
     sse.onmessage = handleNewMessage;
 
     return () => {
@@ -379,8 +436,10 @@ export default function ChatPage() {
         }).catch(() => {});
       }
 
-      // Optimistic
       const tempId = crypto.randomUUID();
+      const replyData = replyingTo
+        ? { reply_to: replyingTo.sort_key || null, reply_preview: replyingTo.content.slice(0, 100), reply_username: replyingTo.username }
+        : {};
       setMessages((prev) => [
         ...prev,
         {
@@ -390,21 +449,24 @@ export default function ChatPage() {
           avatar_url: user.imageUrl,
           content,
           created_at: new Date().toISOString(),
+          reactions: {},
+          ...replyData,
         },
       ]);
+      setReplyingTo(null);
 
       try {
         await api.sendMessage(activeRoomId, {
           sender_id: user.id,
           content,
-        });
-        // Mark as read after sending
+          ...(replyData.reply_to ? { reply_to: replyData.reply_to, reply_preview: replyData.reply_preview } : {}),
+        } as { sender_id: string; content: string; reply_to?: string; reply_preview?: string });
         api.markRead(activeRoomId, user.id).catch(() => {});
       } catch (e) {
         console.error("Failed to send:", e);
       }
     },
-    [user, activeRoomId],
+    [user, activeRoomId, replyingTo],
   );
 
   const handleDeleteMessage = useCallback(
@@ -419,6 +481,48 @@ export default function ChatPage() {
       }
     },
     [activeRoomId],
+  );
+
+  const handleEditMessage = useCallback(
+    async (messageId: string, sortKey: string, newContent: string) => {
+      if (!activeRoomId) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, content: newContent, edited_at: new Date().toISOString() } : m
+        )
+      );
+      try {
+        await api.editMessage(activeRoomId, sortKey, newContent);
+      } catch (e) {
+        console.error("Failed to edit:", e);
+      }
+    },
+    [activeRoomId],
+  );
+
+  const handleToggleReaction = useCallback(
+    async (messageId: string, sortKey: string, emoji: string) => {
+      if (!activeRoomId || !user) return;
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m;
+          const reactions = { ...(m.reactions || {}) };
+          const users = [...(reactions[emoji] || [])];
+          const idx = users.indexOf(user.id);
+          if (idx >= 0) users.splice(idx, 1);
+          else users.push(user.id);
+          if (users.length > 0) reactions[emoji] = users;
+          else delete reactions[emoji];
+          return { ...m, reactions };
+        })
+      );
+      try {
+        await api.toggleReaction(activeRoomId, sortKey, { user_id: user.id, emoji });
+      } catch (e) {
+        console.error("Failed to toggle reaction:", e);
+      }
+    },
+    [activeRoomId, user],
   );
 
   const handleCreateRoom = useCallback(
@@ -445,8 +549,11 @@ export default function ChatPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="text-sm text-neutral-400">Loading workspace...</p>
+      <div className="flex h-screen items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="inline-flex h-10 w-10 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-900" />
+          <p className="mt-3 text-sm text-neutral-400">Loading workspace...</p>
+        </div>
       </div>
     );
   }
@@ -464,23 +571,37 @@ export default function ChatPage() {
           userName={user?.fullName || user?.username || undefined}
         />
       )}
+      {searchOpen && (
+        <SearchModal
+          onClose={() => setSearchOpen(false)}
+          onNavigate={(roomId: string) => { setActiveRoomId(roomId); setSearchOpen(false); }}
+          activeRoomId={activeRoomId}
+          rooms={rooms}
+        />
+      )}
       <Sidebar
         rooms={rooms}
         activeRoomId={activeRoomId}
         onSelectRoom={setActiveRoomId}
         onCreateRoom={handleCreateRoom}
+        onOpenSearch={() => setSearchOpen(true)}
       />
       <ChatArea
         roomName={activeRoom?.name || "general"}
         roomDescription={activeRoom?.description}
         messages={messages}
         onSendMessage={handleSend}
+        onDeleteMessage={handleDeleteMessage}
+        onEditMessage={handleEditMessage}
+        onToggleReaction={handleToggleReaction}
         onToggleMembers={() => setShowMembers((s) => !s)}
         showMembers={showMembers}
         typingUsers={typingUsers}
         onTyping={handleTypingStart}
-        onDeleteMessage={handleDeleteMessage}
         currentUserId={user?.id}
+        replyingTo={replyingTo}
+        onReply={setReplyingTo}
+        onCancelReply={() => setReplyingTo(null)}
       />
       {showMembers && <MembersPanel members={members} />}
     </div>
