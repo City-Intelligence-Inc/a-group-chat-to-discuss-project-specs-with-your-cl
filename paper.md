@@ -2,7 +2,7 @@
 
 **Arihant Choudhary**
 City Intelligence, Inc.
-arihant@cityintelligence.com
+arihant@complete.city
 
 *March 2026*
 
