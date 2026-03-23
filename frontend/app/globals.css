@@ -115,8 +115,43 @@
   background: #a3a3a3;
 }
 
+/* Focus-visible ring for all interactive elements */
+:focus-visible {
+  outline: 2px solid #171717;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #171717;
+  outline-offset: 2px;
+}
+
+/* Active/pressed state */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Smooth transitions on all interactive elements */
+button, a {
+  transition: all 150ms ease;
+}
+
 /* Hide Clerk branding */
 .cl-footer,
 .cl-internal-b3fm6y {
   display: none !important;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
