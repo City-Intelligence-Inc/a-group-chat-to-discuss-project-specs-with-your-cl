@@ -217,6 +217,8 @@ export default function ChatPage() {
             reply_preview: (m.reply_preview as string) || null,
           };
         });
+        // Sort chronologically (API returns newest-first)
+        msgs.sort((a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         setMessages(msgs);
 
         // Set members with real online status
@@ -312,7 +314,9 @@ export default function ChatPage() {
 
         setMessages((prev) => {
           if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, msg];
+          const next = [...prev, msg];
+          next.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+          return next;
         });
 
         // Increment unread for other rooms
