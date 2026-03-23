@@ -244,8 +244,13 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
     if (files.length === 0) return;
 
     for (const file of files) {
-      // For text-based files, read and paste content
-      if (file.name.match(/\.(md|txt|markdown|json|csv|log|pdf)$/i) || file.type.startsWith("text/")) {
+      // Only read plaintext files — NOT PDFs or other binary formats
+      const isTextFile = (
+        file.type.startsWith("text/") ||
+        file.name.match(/\.(md|txt|markdown|json|csv|log|xml|yaml|yml|toml|ini|env|sh|py|js|ts|jsx|tsx|html|css|sql)$/i)
+      );
+
+      if (isTextFile) {
         const reader = new FileReader();
         reader.onload = () => {
           const text = reader.result as string;
