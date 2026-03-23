@@ -129,11 +129,11 @@ function parseAttachment(content: string) {
   // 📎 Shared: **name** (size)
   let m = content.match(/^📎\s*Shared(?:\s*file)?:\s*\*\*(.+?)\*\*\s*\((.+?)\)\s*$/);
   if (m) return { fileName: m[1], fileSize: m[2] };
-  // 📎 [name](url)
-  m = content.match(/^📎\s*\[(.+?)\]\((.+?)\)\s*$/);
+  // 📎 [name](url) — file with S3 link (greedy URL to handle query params)
+  m = content.match(/^📎\s*\[(.+?)\]\((.+)\)\s*$/);
   if (m) return { fileName: m[1], fileUrl: m[2] };
-  // ![name](url)
-  m = content.match(/^!\[(.+?)\]\((.+?)\)\s*$/);
+  // ![name](url) — image with S3 link
+  m = content.match(/^!\[(.+?)\]\((.+)\)\s*$/);
   if (m) return { fileName: m[1], fileUrl: m[2], isImage: true };
   // **📎 name**\n\ncontent (text file paste)
   m = content.match(/^\*\*📎\s*(.+?)\*\*\n\n([\s\S]*)$/);
@@ -239,9 +239,13 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => { if (replyingTo) textareaRef.current?.focus(); }, [replyingTo]);
 
-  const handleSend = () => {
+  const [uploading, setUploading] = useState(false);
+
+  const handleSend = async () => {
     if (pendingFile) {
-      sendPendingFile();
+      setUploading(true);
+      await sendPendingFile();
+      setUploading(false);
       if (input.trim()) {
         onSendMessage(input.trim());
         setInput("");
@@ -603,7 +607,7 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
                     {pendingFile.isText && pendingFile.content && (
                       <> &middot; {pendingFile.content.split("\n").length} lines</>
                     )}
-                    {!pendingFile.isText && " — will upload to cloud"}
+                    {!pendingFile.isText && (uploading ? " — uploading…" : " — will upload to cloud")}
                     {pendingFile.isText && " — content will be shared"}
                   </p>
                   {pendingFile.isText && pendingFile.content && (
@@ -643,7 +647,7 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-neutral-300">{input.trim() ? "Enter to send" : ""}</span>
-              <button onClick={handleSend} disabled={!input.trim() && !pendingFile} className={`h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-150 ${(input.trim() || pendingFile) ? "bg-neutral-900 text-white hover:bg-neutral-800 shadow-sm" : "bg-neutral-200 text-neutral-400 cursor-not-allowed"}`}><SendHorizontal className="h-4 w-4" /></button>
+              <button onClick={handleSend} disabled={uploading || (!input.trim() && !pendingFile)} className={`h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-150 ${uploading ? "bg-neutral-900 text-white animate-pulse" : (input.trim() || pendingFile) ? "bg-neutral-900 text-white hover:bg-neutral-800 shadow-sm" : "bg-neutral-200 text-neutral-400 cursor-not-allowed"}`}>{uploading ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <SendHorizontal className="h-4 w-4" />}</button>
             </div>
           </div>
         </div>
