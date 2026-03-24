@@ -1,5 +1,7 @@
 # Mechanize Take-Home Challenge: Chat Room
 
+Arihant's submission: https://frontend-g1q3upcjy-city-intelligence-inc.vercel.app/
+
 Thank you for taking the time to interview with Mechanize!
 This repo contains your assignment for the final phase of our interview process,
 an open-ended take-home assignment.
