@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "interview/Call Script.md",
+                "file": "interview/Talking Points.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Call Script"
+              "title": "Talking Points"
             }
           },
           {
@@ -199,9 +199,12 @@
   },
   "active": "44b5f91f87ba9ca1",
   "lastOpenFiles": [
+    "interview/Issue Tracker & Interview Answers.md",
+    "interview/Hot Partition Problem.md",
+    "interview/Design Decisions.md",
+    "interview/Call Script.md",
     "00 - Home.md",
     "interview/Talking Points.md",
-    "interview/Call Script.md",
     "mobile/Test Plan.md",
     "mobile/API Client.md",
     "backend/Real-time.md",
@@ -210,8 +213,6 @@
     "mobile/Components.md",
     "mobile/Overview.md",
     "mobile",
-    "interview/Hot Partition Problem.md",
-    "interview/Design Decisions.md",
     "infrastructure/Terraform.md",
     "infrastructure/Deployment.md",
     "frontend/Components.md",

@@ -1,22 +1,22 @@
 import type { Metadata } from "next";
-import { Inter, Newsreader } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-sans",
+const geistSans = Geist({
+  variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-const newsreader = Newsreader({
-  variable: "--font-serif",
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
-  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
-  title: "Townhall — Real-time team communication",
-  description: "Townhall by City Intelligence. Where teams come together to communicate in real time.",
+  title: "Discord Clone",
+  description: "Real-time chat room application",
 };
 
 export default function RootLayout({
@@ -25,9 +25,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en" className={`${inter.variable} ${newsreader.variable} h-full antialiased`}>
-        <body className="min-h-full flex flex-col bg-white text-neutral-900 font-sans">
+    <ClerkProvider appearance={{ baseTheme: dark }}>
+      <html
+        lang="en"
+        className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+      >
+        <body className="min-h-full flex flex-col bg-[#313338] text-[#f2f3f5]">
           {children}
         </body>
       </html>
