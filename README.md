@@ -1,6 +1,6 @@
 # Mechanize Take-Home Challenge: Chat Room — Townhall
 
-**Live app**: https://frontend-5a7kdkgs6-city-intelligence-inc.vercel.app
+**Live app**: https://frontend-g1q3upcjy-city-intelligence-inc.vercel.app/chat
 **API docs**: https://9rjvhfdkqt.us-west-2.awsapprunner.com/docs
 
 Thank you for taking the time to interview with Mechanize!
