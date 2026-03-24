@@ -396,7 +396,7 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
   const actionIcon = "h-[14px] w-[14px] stroke-[1.75]";
 
   const renderActions = (msg: Message, isOwn: boolean) => (
-    <div className="absolute -top-3 right-5 hidden group-hover:flex items-center rounded-lg bg-white border border-neutral-200 shadow-sm px-0.5 py-0.5 z-10">
+    <div className={`absolute -top-3 right-5 items-center rounded-lg bg-white border border-neutral-200 shadow-sm px-0.5 py-0.5 z-10 ${emojiPickerMsgId === msg.id ? "flex" : "hidden group-hover:flex"}`}>
       {onToggleReaction && msg.sort_key && (
         <div className="relative">
           <button
