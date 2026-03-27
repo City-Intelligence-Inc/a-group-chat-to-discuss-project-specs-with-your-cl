@@ -720,7 +720,7 @@ export function ChatArea({ roomName, roomDescription, messages, onSendMessage, o
           </div>
           </div>
         )}
-        <div className={`max-w-3xl mx-auto ${replyingTo ? "rounded-b-xl rounded-t-none" : "rounded-xl"} border border-neutral-200 bg-neutral-50/80 shadow-sm focus-within:border-neutral-300 focus-within:bg-white focus-within:shadow-md transition-all duration-200`}>
+        <div className={`max-w-3xl mx-auto ${replyingTo ? "rounded-b-xl rounded-t-none" : "rounded-xl"} border border-neutral-200 bg-neutral-50/80 shadow-sm focus-within:border-neutral-200 focus-within:bg-white focus-within:shadow-md transition-all duration-200`}>
           <div className="flex items-center gap-0.5 px-3 pt-2.5 pb-1">
             <button type="button" title="Bold" onClick={() => wrapSelection("**", "**")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors text-xs font-bold">B</button>
             <button type="button" title="Italic" onClick={() => wrapSelection("_", "_")} className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors text-xs italic">I</button>
