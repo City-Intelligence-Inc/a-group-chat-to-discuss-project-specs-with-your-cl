@@ -25,3 +25,12 @@ There is an Obsidian vault at `obsidian-vault/` that documents the entire app (a
 - New architectural decisions → update `obsidian-vault/interview/Design Decisions.md`
 
 Keep the vault as the single source of truth for reviewing the app.
+
+## Auto Commit & Push
+
+After every prompt that results in code changes, you MUST:
+
+1. Stage and commit the changes with a descriptive message
+2. Push to the remote (`git push origin main`)
+
+This applies to every single change — no exceptions. Do not wait for the user to ask.

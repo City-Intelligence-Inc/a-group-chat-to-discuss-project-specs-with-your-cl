@@ -10,7 +10,8 @@ RootLayout (layout.tsx)
         ├── SignUp (sign-up/page.tsx)       — "/sign-up"
         └── ChatPage (chat/page.tsx)        — "/chat" (protected)
               ├── SearchModal (Cmd+K)
-              ├── Sidebar
+              ├── SettingsModal (font chooser)
+              ├── Sidebar (+ settings gear button)
               ├── ChatArea
               │     ├── MessageActions (hover toolbar)
               │     │     ├── EmojiPicker (reaction)
@@ -38,6 +39,7 @@ RootLayout (layout.tsx)
 | `loading` | `boolean` | Initial load spinner |
 | `typingUsers` | `string[]` | Usernames currently typing |
 | `searchOpen` | `boolean` | Cmd+K search modal |
+| `settingsOpen` | `boolean` | Settings modal (font chooser) |
 | `replyingTo` | `Message \| null` | Message being replied to |
 | `sseRef` | `useRef<EventSource>` | SSE connection ref |
 | `userMapRef` | `useRef<Map>` | Cache of userId → {username, avatar} |

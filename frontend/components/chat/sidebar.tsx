@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useUser, UserButton } from "@clerk/nextjs";
-import { Hash, Plus, ChevronDown, Search } from "lucide-react";
+import { Hash, Plus, ChevronDown, Search, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,9 +21,10 @@ interface SidebarProps {
   onSelectRoom: (roomId: string) => void;
   onCreateRoom: (name: string, description: string) => void;
   onOpenSearch?: () => void;
+  onOpenSettings?: () => void;
 }
 
-export function Sidebar({ rooms, activeRoomId, onSelectRoom, onCreateRoom, onOpenSearch }: SidebarProps) {
+export function Sidebar({ rooms, activeRoomId, onSelectRoom, onCreateRoom, onOpenSearch, onOpenSettings }: SidebarProps) {
   const { user } = useUser();
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
@@ -119,6 +120,13 @@ export function Sidebar({ rooms, activeRoomId, onSelectRoom, onCreateRoom, onOpe
             Active
           </p>
         </div>
+        <button
+          onClick={onOpenSettings}
+          title="Settings"
+          className="h-7 w-7 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors"
+        >
+          <Settings className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {/* Create channel modal */}

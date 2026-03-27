@@ -7,6 +7,7 @@ import { ChatArea } from "@/components/chat/chat-area";
 import { MembersPanel } from "@/components/chat/members-panel";
 import { Onboarding } from "@/components/chat/onboarding";
 import { SearchModal } from "@/components/chat/search-modal";
+import { SettingsModal, useFont } from "@/components/chat/settings-modal";
 import * as api from "@/lib/api";
 
 interface Room {
@@ -51,6 +52,7 @@ export default function ChatPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const sseRef = useRef<EventSource | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,6 +61,9 @@ export default function ChatPage() {
   const userMapRef = useRef<Map<string, { username: string; avatar_url?: string }>>(new Map());
   // Track lastReadAt per room for unread badges
   const lastReadRef = useRef<Map<string, string>>(new Map());
+
+  // Load saved font preference
+  useFont();
 
   // Set up auth token provider for API calls
   useEffect(() => {
@@ -623,6 +628,7 @@ export default function ChatPage() {
           rooms={rooms}
         />
       )}
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {/* Mobile sidebar overlay */}
       {showSidebar && (
         <div className="fixed inset-0 z-40 md:hidden">
@@ -634,6 +640,7 @@ export default function ChatPage() {
               onSelectRoom={(id) => { setActiveRoomId(id); setShowSidebar(false); }}
               onCreateRoom={handleCreateRoom}
               onOpenSearch={() => { setSearchOpen(true); setShowSidebar(false); }}
+              onOpenSettings={() => { setSettingsOpen(true); setShowSidebar(false); }}
             />
           </div>
         </div>
@@ -646,6 +653,7 @@ export default function ChatPage() {
           onSelectRoom={setActiveRoomId}
           onCreateRoom={handleCreateRoom}
           onOpenSearch={() => setSearchOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
       </div>
       <ChatArea

@@ -5,9 +5,18 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: var(--font-sans), "Inter", -apple-system, system-ui, sans-serif;
+  --font-sans: var(--font-inter), "Inter", -apple-system, system-ui, sans-serif;
   --font-serif: var(--font-serif), "Newsreader", "Georgia", serif;
 }
+
+/* Font chooser overrides */
+[data-font="inter"]          { --font-sans: var(--font-inter), "Inter", -apple-system, system-ui, sans-serif !important; }
+[data-font="dm-sans"]        { --font-sans: var(--font-dm-sans), "DM Sans", -apple-system, system-ui, sans-serif !important; }
+[data-font="plus-jakarta"]   { --font-sans: var(--font-plus-jakarta), "Plus Jakarta Sans", -apple-system, system-ui, sans-serif !important; }
+[data-font="space-grotesk"]  { --font-sans: var(--font-space-grotesk), "Space Grotesk", -apple-system, system-ui, sans-serif !important; }
+[data-font="jetbrains"]      { --font-sans: var(--font-jetbrains), "JetBrains Mono", monospace !important; }
+[data-font="outfit"]         { --font-sans: var(--font-outfit), "Outfit", -apple-system, system-ui, sans-serif !important; }
+[data-font="lora"]           { --font-sans: var(--font-lora), "Lora", "Georgia", serif !important; }
 
 @theme inline {
   --color-background: var(--background);
